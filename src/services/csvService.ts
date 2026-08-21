@@ -104,6 +104,20 @@ function mdYyToExcelSerial(s: string): number | null {
 }
 
 /**
+ * Convert "DD-MM-YYYY" or "D-M-YYYY" → Excel date serial.
+ * Common in Indian/European-locale Excel exports.
+ */
+function dmYyyyToExcelSerial(s: string): number | null {
+  const m = s.trim().match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (!m) return null;
+  const day   = parseInt(m[1], 10);
+  const month = parseInt(m[2], 10);
+  const year  = parseInt(m[3], 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000) + 25569;
+}
+
+/**
  * Convert strict 24-hour "HH:MM" or "HH:MM:SS" → fraction of a day (Excel
  * time representation). Rejects out-of-range hour/minute/second values
  * (e.g. "25:00", "12:60") — those aren't valid in 24-hour format either.
@@ -170,6 +184,8 @@ export function parseDateToSerial(raw: string): number | null {
   if (iso !== null) return iso;
   const slash = mdYyToExcelSerial(s);
   if (slash !== null) return slash;
+  const dmy = dmYyyyToExcelSerial(s);
+  if (dmy !== null) return dmy;
   const num = Number(s);
   if (!isNaN(num) && num > 25569 && num < 80000) return num; // plausible Excel serial range
   return null;
