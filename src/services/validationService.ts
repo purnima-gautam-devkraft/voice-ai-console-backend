@@ -74,7 +74,7 @@ export function validateAgentData(
     //    the unified output file (Excel serial date / time-of-day fraction).
     if (missingColumns.indexOf('date_of_call') === -1) {
       if (parseDateToSerial(row['date_of_call']) === null) {
-        messages.push(`date_of_call "${row['date_of_call']}" is not a recognized date (expected YYYY-MM-DD)`);
+        messages.push(`date_of_call "${row['date_of_call']}" is not a recognized date (expected YYYY-MM-DD or DD-MM-YYYY)`);
       }
     }
     if (missingColumns.indexOf('time_of_call') === -1) {

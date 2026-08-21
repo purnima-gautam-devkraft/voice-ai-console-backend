@@ -119,12 +119,14 @@ export async function saveUploadRecord(input: SaveUploadInput): Promise<void> {
 
   const fileExt = (rawFile.originalName.split('.').pop() || 'csv').toLowerCase();
 
-  // 1. Push the raw bytes into Supabase Storage. Done BEFORE the DB insert
-  //    so a Storage failure leaves the row absent (we don't end up with a
-  //    DB record pointing at a non-existent file).
-  const rawFilePath = await uploadRawToBucket(
-    uploadId, metadata.dataType, rawFile.originalName, rawFile.buffer
-  );
+  let rawFilePath: string | null = null;
+  try {
+    rawFilePath = await uploadRawToBucket(
+      uploadId, metadata.dataType, rawFile.originalName, rawFile.buffer
+    );
+  } catch (storageErr) {
+    console.warn('[storage] Raw file upload failed (continuing without it):', storageErr);
+  }
 
   const row: DBUpload = {
     upload_id: uploadId,
@@ -153,9 +155,9 @@ export async function saveUploadRecord(input: SaveUploadInput): Promise<void> {
 
   const { error } = await getSupabase().from(UPLOADS_TABLE).insert(row);
   if (error) {
-    // Best-effort cleanup: try to remove the orphaned file so retries don't
-    // collide on the path. Ignore cleanup errors.
-    await getSupabase().storage.from(RAW_FILES_BUCKET).remove([rawFilePath]).catch(() => undefined);
+    if (rawFilePath) {
+      await getSupabase().storage.from(RAW_FILES_BUCKET).remove([rawFilePath]).catch(() => undefined);
+    }
     throw new Error(`Supabase insert failed: ${error.message}`);
   }
 }
