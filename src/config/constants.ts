@@ -2,7 +2,7 @@ import { AgentUseCase, University } from '../types';
 
 // Updated 2026-07-29 per client-shared university/program list.
 export const UNIVERSITIES: Record<University, string[]> = {
-  GGU: ['MBA', 'DBA', 'MS Management'],
+  GGU: ['MBA', 'DBA', 'DBA ET', 'MS Management'],
   Edgewood: ['MBA', 'DBA', 'MBA + DBA Dual', 'EdD', 'MeD', 'EdD + MeD Dual'],
   ESGCI: ['DBA'],
   Waterloo: ['AI-CTO'],
