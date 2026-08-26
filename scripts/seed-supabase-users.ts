@@ -33,7 +33,7 @@ const USERS = [
   { email: 'admin@voiceai.com',                name: 'Voice AI Superadmin',         role: 'system_admin'  },
   { email: 'swaroop.mendon@upgrad.com',        name: 'Swaroop Mendon',              role: 'system_admin'  },
   { email: 'sandeep.pereira@upgrad.com',       name: 'Sandeep Pereira',             role: 'system_admin'  },
-  { email: 'dipika1.carpenter@upgrad.com',     name: 'Dipika Carpenter',            role: 'support_agent' },
+  { email: 'dipika1.carpenter@upgrad.com',     name: 'Dipika Carpenter',            role: 'data_manager' },
   { email: 'hiral.patani@upgrad.com',          name: 'Hiral Kamlesh Patani',        role: 'data_manager'  },
   { email: 'khushbu1.bhadra@upgrad.com',       name: 'Khushbu Sudhir Bhadr',        role: 'data_manager'  },
   { email: 'mukhtar.sayyed@upgrad.com',        name: 'Mukhtar Ali Ali Sayyed',      role: 'data_manager'  },
