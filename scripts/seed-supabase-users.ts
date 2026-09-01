@@ -39,6 +39,8 @@ const USERS = [
   { email: 'mukhtar.sayyed@upgrad.com',        name: 'Mukhtar Ali Ali Sayyed',      role: 'data_manager'  },
   { email: 'praveen.shettigar@upgrad.com',     name: 'Praveen Ravindra Shettigar',  role: 'data_manager'  },
   { email: 'michelle.fernandes@upgrad.com',    name: 'Michelle Secelin Fernandes',  role: 'data_manager'  },
+  { email: 'akshit1.shetty@upgrad.com',        name: 'Akshit Shetty',               role: 'data_manager'  },
+  { email: 'rashmi.rane@upgrad.com',           name: 'Rashmi Rane',                 role: 'data_manager'  },
 ];
 
 async function seed() {
