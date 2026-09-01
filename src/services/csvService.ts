@@ -132,6 +132,22 @@ function timeStringToFraction(s: string): number | null {
   return (h * 3600 + mm * 60 + ss) / 86_400;
 }
 
+/**
+ * Convert 12-hour "H:MM AM/PM" or "HH:MM:SS AM/PM" → 24-hour "HH:MM".
+ * Returns null if the string doesn't look like a 12-hour time.
+ */
+function amPmToHHMM(s: string): string | null {
+  const m = s.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+  const period = m[3].toUpperCase();
+  if (h < 1 || h > 12 || mm > 59) return null;
+  if (period === 'AM') { if (h === 12) h = 0; }
+  else { if (h !== 12) h += 12; }
+  return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
 
 /**
  * Convert an Excel serial number (days since 1900-01-00) to an ISO date
@@ -173,9 +189,9 @@ function isoDateToExcelSerial(s: string): number | null {
 
 /**
  * Parse `date_of_call` from any of the formats we see in agent input files
- * (ISO "YYYY-MM-DD", slash "M/D/YYYY", or an already-numeric Excel serial)
- * into an Excel serial number. Returns null when the value can't be
- * recognized as a date — callers should treat that as a validation error.
+ * (ISO "YYYY-MM-DD", slash "M/D/YYYY", DD-MM-YYYY, or an already-numeric
+ * Excel serial) into an Excel serial number. Returns null when the value
+ * can't be recognized as a date.
  */
 export function parseDateToSerial(raw: string): number | null {
   const s = String(raw ?? '').trim();
@@ -192,11 +208,19 @@ export function parseDateToSerial(raw: string): number | null {
 }
 
 /**
+ * Parse any recognizable date format → "YYYY-MM-DD" text string.
+ * Accepts: YYYY-MM-DD, DD-MM-YYYY, M/D/YYYY, Excel serial number.
+ * Returns null when the value cannot be parsed.
+ */
+export function parseDateToISO(raw: string): string | null {
+  const serial = parseDateToSerial(raw);
+  if (serial === null) return null;
+  return excelSerialToISODate(serial);
+}
+
+/**
  * Parse `time_of_call` from strict 24-hour "HH:MM" / "HH:MM:SS", or an
  * already-numeric Excel time fraction, into an Excel time fraction (0..1).
- * 12-hour AM/PM input is intentionally rejected (client requirement
- * 2026-07-27: time_of_call must be 24-hour format) — callers should surface
- * this as a validation error asking for a 24-hour value.
  */
 export function parseTimeToFraction(raw: string): number | null {
   const s = String(raw ?? '').trim();
@@ -205,6 +229,26 @@ export function parseTimeToFraction(raw: string): number | null {
   if (frac !== null) return frac;
   const num = Number(s);
   if (!isNaN(num) && num >= 0 && num <= 1) return num;
+  return null;
+}
+
+/**
+ * Parse any recognizable time format → "HH:MM" 24-hour text string.
+ * Accepts: HH:MM, HH:MM:SS (24-hour), H:MM AM/PM (12-hour), Excel fraction.
+ * Returns null when the value cannot be parsed.
+ */
+export function parseTimeToHHMM(raw: string): string | null {
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  // 12-hour AM/PM first
+  const ampm = amPmToHHMM(s);
+  if (ampm !== null) return ampm;
+  // 24-hour string
+  const frac = timeStringToFraction(s);
+  if (frac !== null) return excelFractionToTime(frac);
+  // Excel fraction number
+  const num = Number(s);
+  if (!isNaN(num) && num >= 0 && num <= 1) return excelFractionToTime(num);
   return null;
 }
 
@@ -329,12 +373,10 @@ export function agentDataToXlsxBuffer(
     const fromNumber = String(row['from_number'] || '').trim();
 
     const dateRaw = row['date_of_call'] || '';
-    const dateSerial = parseDateToSerial(dateRaw);
-    const dateVal: string | number = dateSerial !== null ? dateSerial : dateRaw;
+    const dateVal: string = parseDateToISO(dateRaw) ?? dateRaw;
 
     const timeRaw = row['time_of_call'] || '';
-    const timeFrac = parseTimeToFraction(timeRaw);
-    const timeVal: string | number = timeFrac !== null ? timeFrac : timeRaw;
+    const timeVal: string = parseTimeToHHMM(timeRaw) ?? timeRaw;
 
     aoa.push([
       userIdVal,
@@ -355,29 +397,13 @@ export function agentDataToXlsxBuffer(
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-  const dateColIdx = UNIFIED_CSV_COLUMNS.indexOf('date_of_call');
-  const timeColIdx = UNIFIED_CSV_COLUMNS.indexOf('time_of_call');
-  const textColIdxs = ['user_contact', 'from_number']
+  // Force text type on phone-number and date/time columns so Excel never
+  // converts them to scientific notation or date serials.
+  const textColIdxs = ['user_contact', 'from_number', 'date_of_call', 'time_of_call']
     .map((c) => UNIFIED_CSV_COLUMNS.indexOf(c))
     .filter((i) => i >= 0);
 
   for (let r = 1; r < aoa.length; r++) {
-    if (dateColIdx >= 0) {
-      const addr = XLSX.utils.encode_cell({ c: dateColIdx, r });
-      const cell = ws[addr];
-      if (cell && typeof cell.v === 'number') {
-        cell.t = 'n';
-        cell.z = 'yyyy-mm-dd';
-      }
-    }
-    if (timeColIdx >= 0) {
-      const addr = XLSX.utils.encode_cell({ c: timeColIdx, r });
-      const cell = ws[addr];
-      if (cell && typeof cell.v === 'number') {
-        cell.t = 'n';
-        cell.z = 'hh:mm:ss';
-      }
-    }
     for (const ci of textColIdxs) {
       const addr = XLSX.utils.encode_cell({ c: ci, r });
       const cell = ws[addr];

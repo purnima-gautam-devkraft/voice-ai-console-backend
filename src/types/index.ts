@@ -95,6 +95,8 @@ export interface ErrorRow {
 export interface ValidationResult {
   valid: Record<string, string>[];
   errors: ErrorRow[];
+  dateAutoCorrected: number;
+  timeAutoCorrected: number;
 }
 
 export interface UploadResult {
