@@ -4,8 +4,8 @@ import {
   validateUserContact,
   validateFromNumber,
   normalizeFromNumber,
-  parseDateToSerial,
-  parseTimeToFraction,
+  parseDateToISO,
+  parseTimeToHHMM,
 } from './csvService';
 
 /**
@@ -23,11 +23,13 @@ export function validateAgentData(
   const expectedAgentId = AGENT_IDS[agentType];
   const valid: Record<string, string>[] = [];
   const errors: ErrorRow[] = [];
+  let dateAutoCorrected = 0;
+  let timeAutoCorrected = 0;
 
   rows.forEach((row, index) => {
     const messages: string[] = [];
 
-    // 1. Columns A-K (the 11 unified mandatory columns) must all be present.
+    // 1. Mandatory columns must all be present and non-empty.
     const missingColumns: string[] = [];
     for (const col of mandatoryColumns) {
       const value = row[col];
@@ -50,17 +52,13 @@ export function validateAgentData(
       }
     }
 
-    // 3. user_contact must be a clean digit string — reject scientific-notation
-    //    corruption from unformatted Excel number cells.
+    // 3. user_contact — reject scientific-notation corruption.
     if (missingColumns.indexOf('user_contact') === -1) {
       const contactError = validateUserContact(row['user_contact']);
       if (contactError) messages.push(contactError);
     }
 
-    // 4. from_number must match the required format. A missing leading zero
-    //    (Excel numeric-cell stripping, e.g. "1169323435") is auto-restored
-    //    in place so the corrected value carries through to the unified file
-    //    — everything else (scientific notation, wrong length) still rejects.
+    // 4. from_number — auto-restore stripped leading zero; reject other issues.
     if (missingColumns.indexOf('from_number') === -1) {
       const fromNumberError = validateFromNumber(row['from_number']);
       if (fromNumberError) {
@@ -70,16 +68,25 @@ export function validateAgentData(
       }
     }
 
-    // 5. date_of_call / time_of_call must parse into the exact format used by
-    //    the unified output file (Excel serial date / time-of-day fraction).
+    // 5. date_of_call — auto-normalize to YYYY-MM-DD. Accept any parseable format.
     if (missingColumns.indexOf('date_of_call') === -1) {
-      if (parseDateToSerial(row['date_of_call']) === null) {
-        messages.push(`date_of_call "${row['date_of_call']}" is not a recognized date (expected YYYY-MM-DD or DD-MM-YYYY)`);
+      const iso = parseDateToISO(row['date_of_call']);
+      if (iso === null) {
+        messages.push(`date_of_call "${row['date_of_call']}" is not a recognizable date. Use YYYY-MM-DD, DD-MM-YYYY, or M/D/YYYY.`);
+      } else if (iso !== row['date_of_call']) {
+        row['date_of_call'] = iso;
+        dateAutoCorrected++;
       }
     }
+
+    // 6. time_of_call — auto-normalize to HH:MM 24-hour. Accept 12-hour AM/PM too.
     if (missingColumns.indexOf('time_of_call') === -1) {
-      if (parseTimeToFraction(row['time_of_call']) === null) {
-        messages.push(`time_of_call "${row['time_of_call']}" is not a recognized 24-hour time (expected HH:MM or HH:MM:SS, e.g. 21:00 or 21:00:00 — not 9:00 PM)`);
+      const hhmm = parseTimeToHHMM(row['time_of_call']);
+      if (hhmm === null) {
+        messages.push(`time_of_call "${row['time_of_call']}" is not a recognizable time. Use HH:MM (24-hour) or H:MM AM/PM.`);
+      } else if (hhmm !== row['time_of_call']) {
+        row['time_of_call'] = hhmm;
+        timeAutoCorrected++;
       }
     }
 
@@ -95,5 +102,5 @@ export function validateAgentData(
     });
   });
 
-  return { valid, errors };
+  return { valid, errors, dateAutoCorrected, timeAutoCorrected };
 }

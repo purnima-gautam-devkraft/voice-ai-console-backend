@@ -108,7 +108,7 @@ router.post(
 
     try {
       const rows = parseRowsFromBuffer(req.file.buffer, req.file.originalname);
-      const { valid, errors } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent);
+      const { valid, errors, dateAutoCorrected, timeAutoCorrected } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent);
 
       const uploadId = uuidv4();
       const now = new Date().toISOString();
@@ -259,6 +259,8 @@ router.post(
         unifiedCsvAvailable: xlsxBuffer != null,
         unifiedArchivedToS3,
         schedulerNotified,
+        dateAutoCorrected,
+        timeAutoCorrected,
       });
     } catch (err) {
       console.error('Upload error:', err);
