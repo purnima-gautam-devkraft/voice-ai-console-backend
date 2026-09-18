@@ -1,5 +1,5 @@
 import { ValidationResult, ErrorRow, AgentUseCase } from '../types';
-import { AGENT_IDS, AGENT_DISPLAY_NAMES } from '../config/constants';
+import { AGENT_IDS, AGENT_DISPLAY_NAMES, COUNTRY_TIMEZONE_MAP, ALLOWED_COUNTRIES } from '../config/constants';
 import {
   validateUserContact,
   validateFromNumber,
@@ -25,6 +25,7 @@ export function validateAgentData(
   const errors: ErrorRow[] = [];
   let dateAutoCorrected = 0;
   let timeAutoCorrected = 0;
+  let timezoneAutoCorrected = 0;
 
   rows.forEach((row, index) => {
     const messages: string[] = [];
@@ -90,6 +91,25 @@ export function validateAgentData(
       }
     }
 
+    // 7. user_country_of_residence — must be one of the allowed destination countries.
+    //    timezone — auto-set from the country map, overwriting whatever the client supplied.
+    if (missingColumns.indexOf('user_country_of_residence') === -1) {
+      const rawCountry = String(row['user_country_of_residence'] || '').trim();
+      const canonicalTz = COUNTRY_TIMEZONE_MAP[rawCountry.toLowerCase()];
+      if (!canonicalTz) {
+        messages.push(
+          `user_country_of_residence "${rawCountry}" is not a supported destination country. ` +
+          `Allowed: ${ALLOWED_COUNTRIES.join(', ')}.`
+        );
+      } else {
+        // Auto-set timezone to the canonical value for this country
+        if (row['timezone'] !== canonicalTz) {
+          row['timezone'] = canonicalTz;
+          timezoneAutoCorrected++;
+        }
+      }
+    }
+
     if (messages.length === 0) {
       valid.push(row);
       return;
@@ -102,5 +122,5 @@ export function validateAgentData(
     });
   });
 
-  return { valid, errors, dateAutoCorrected, timeAutoCorrected };
+  return { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneAutoCorrected };
 }

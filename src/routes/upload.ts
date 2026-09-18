@@ -108,7 +108,7 @@ router.post(
 
     try {
       const rows = parseRowsFromBuffer(req.file.buffer, req.file.originalname);
-      const { valid, errors, dateAutoCorrected, timeAutoCorrected } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent);
+      const { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneAutoCorrected } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent);
 
       const uploadId = uuidv4();
       const now = new Date().toISOString();
@@ -261,6 +261,7 @@ router.post(
         schedulerNotified,
         dateAutoCorrected,
         timeAutoCorrected,
+        timezoneAutoCorrected,
       });
     } catch (err) {
       console.error('Upload error:', err);

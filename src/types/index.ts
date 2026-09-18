@@ -97,6 +97,7 @@ export interface ValidationResult {
   errors: ErrorRow[];
   dateAutoCorrected: number;
   timeAutoCorrected: number;
+  timezoneAutoCorrected: number;
 }
 
 export interface UploadResult {
