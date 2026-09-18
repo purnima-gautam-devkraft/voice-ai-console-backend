@@ -88,12 +88,14 @@ export const AGENT_OPTIONAL_COLUMNS: string[] = [
  * pattern in config/agentMapping.ts.
  */
 export interface TelephonyProvider {
+  id?: string;
   providerName: string;
   fromNumber: string;
+  country: string;
 }
 
 export const TELEPHONY_PROVIDERS: TelephonyProvider[] = [
-  { providerName: 'Exotel', fromNumber: '01169323435' },
+  { providerName: 'Exotel', fromNumber: '01169323435', country: 'India' },
 ];
 
 /**
