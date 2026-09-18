@@ -9,8 +9,29 @@ import {
 import { agentDataToXlsxBuffer } from '../services/csvService';
 import { listAuditEvents } from '../services/auditService';
 import { AGENT_MAPPING } from '../config/agentMapping';
-import { TELEPHONY_PROVIDERS } from '../config/constants';
+import { TELEPHONY_PROVIDERS, TelephonyProvider } from '../config/constants';
 import { AuditEventType, University, AgentUseCase } from '../types';
+import { getSupabase } from '../lib/supabase';
+
+const TELEPHONY_TABLE = 'telephony_providers';
+
+async function getSupabaseProviders(): Promise<TelephonyProvider[]> {
+  try {
+    const { data, error } = await getSupabase()
+      .from(TELEPHONY_TABLE)
+      .select('id, provider_name, from_number, country')
+      .order('created_at', { ascending: true });
+    if (error || !data) return [];
+    return data.map((r: { id: string; provider_name: string; from_number: string; country: string }) => ({
+      id: r.id,
+      providerName: r.provider_name,
+      fromNumber: r.from_number,
+      country: r.country,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 const router = Router();
 
@@ -29,13 +50,59 @@ router.get(
 );
 
 // GET /api/data/telephony-providers
-// Reference data — telephony provider ↔ from_number lookup. Accessible to
-// all authenticated roles.
 router.get(
   '/telephony-providers',
   authenticateToken,
-  (_req: Request, res: Response): void => {
-    res.json({ providers: TELEPHONY_PROVIDERS, total: TELEPHONY_PROVIDERS.length });
+  async (_req: Request, res: Response): Promise<void> => {
+    const providers = await getSupabaseProviders();
+    res.json({ providers, total: providers.length });
+  }
+);
+
+// POST /api/data/telephony-providers — system_admin only
+router.post(
+  '/telephony-providers',
+  authenticateToken,
+  requireRole('system_admin'),
+  async (req: Request, res: Response): Promise<void> => {
+    const { providerName, fromNumber, country } = req.body;
+    if (!providerName?.trim() || !fromNumber?.trim() || !country?.trim()) {
+      res.status(400).json({ error: 'providerName, fromNumber, and country are required' });
+      return;
+    }
+    try {
+      const { data, error } = await getSupabase()
+        .from(TELEPHONY_TABLE)
+        .insert({ provider_name: providerName.trim(), from_number: fromNumber.trim(), country: country.trim(), created_by: req.user!.email })
+        .select('id, provider_name, from_number, country')
+        .single();
+      if (error) throw error;
+      res.status(201).json({
+        provider: { id: data.id, providerName: data.provider_name, fromNumber: data.from_number, country: data.country },
+      });
+    } catch (err) {
+      console.error('telephony provider create failed:', err);
+      res.status(500).json({ error: 'Failed to create telephony provider' });
+    }
+  }
+);
+
+// DELETE /api/data/telephony-providers/:id — system_admin only
+router.delete(
+  '/telephony-providers/:id',
+  authenticateToken,
+  requireRole('system_admin'),
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+    try {
+      const { error } = await getSupabase().from(TELEPHONY_TABLE).delete().eq('id', id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (err) {
+      console.error('telephony provider delete failed:', err);
+      res.status(500).json({ error: 'Failed to delete telephony provider' });
+    }
   }
 );
 

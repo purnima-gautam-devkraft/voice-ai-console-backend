@@ -280,15 +280,21 @@ export function validateUserContact(raw: string): string | null {
 }
 
 /**
- * Restore a from_number's leading zero when Excel's numeric-cell handling
- * stripped it (e.g. "1169323435" → "01169323435"). Matches the same fix the
- * client applies manually in Google Sheets via ="01169323435". Only pads a
- * plain 10-digit string — anything else passes through unchanged so
- * validateFromNumber can flag it properly.
+ * Restore a from_number that Excel corrupted by stripping its leading zero
+ * (India: "1169323435" → "01169323435") or its leading + sign
+ * (international: "442080995236" → "+442080995236", "6569515435" → "+6569515435",
+ * "12133143493" → "+12133143493"). Only applies unambiguous fixes; anything
+ * else passes through unchanged so validateFromNumber can flag it.
  */
 export function normalizeFromNumber(raw: string): string {
   const s = String(raw ?? '').trim();
+  // India: 10 plain digits → restore leading 0
   if (/^\d{10}$/.test(s)) return '0' + s;
+  // International: plain digits that match a known country-code prefix → restore +
+  // UK (+44), Singapore (+65), US/Canada (+1)
+  if (/^44\d{10}$/.test(s))  return '+' + s;  // UK: 44 + 10 digits
+  if (/^65\d{8}$/.test(s))   return '+' + s;  // Singapore: 65 + 8 digits
+  if (/^1\d{10}$/.test(s))   return '+' + s;  // US/Canada: 1 + 10 digits
   return s;
 }
 
@@ -300,8 +306,9 @@ export function validateFromNumber(raw: string): string | null {
       'Format the From Number column as Text in the source file before re-uploading.';
   }
   const normalized = normalizeFromNumber(s);
-  if (!/^0\d{9,14}$/.test(normalized)) {
-    return 'from_number must be a valid number starting with "0" (e.g. 01169323435).';
+  // Accept Indian format (0XXXXXXXXXX) or international format (+XXXXXXXXXXX)
+  if (!/^0\d{9,14}$/.test(normalized) && !/^\+\d{7,15}$/.test(normalized)) {
+    return 'from_number must be a valid telephony number: Indian format (e.g. 01169323435) or international format with country code (e.g. +442080995236).';
   }
   return null;
 }
