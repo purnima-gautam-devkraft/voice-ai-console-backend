@@ -108,7 +108,8 @@ router.post(
 
     try {
       const rows = parseRowsFromBuffer(req.file.buffer, req.file.originalname);
-      const { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneAutoCorrected } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent);
+      const confirmCorrections = req.body.confirmCorrections === 'true' || req.body.confirmCorrections === true;
+      const { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent, confirmCorrections);
 
       const uploadId = uuidv4();
       const now = new Date().toISOString();
@@ -118,7 +119,10 @@ router.post(
       let unifiedArchivedToS3 = false;
       let schedulerNotified = false;
 
-      if (errors.length === 0 && valid.length > 0) {
+      // Block unified file generation until user confirms timezone corrections
+      const hasTimezoneWarnings = timezoneWarnings.length > 0 && !confirmCorrections;
+
+      if (errors.length === 0 && valid.length > 0 && !hasTimezoneWarnings) {
         xlsxBuffer = agentDataToXlsxBuffer(valid, agent, callType);
         const safeStamp = now.replace(/[:.]/g, '-');
         const safeUni = ((university as string) || 'all').replace(/[^a-z0-9]/gi, '-');
@@ -261,7 +265,7 @@ router.post(
         schedulerNotified,
         dateAutoCorrected,
         timeAutoCorrected,
-        timezoneAutoCorrected,
+        timezoneWarnings,
       });
     } catch (err) {
       console.error('Upload error:', err);
