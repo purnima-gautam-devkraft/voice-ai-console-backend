@@ -92,12 +92,19 @@ export interface ErrorRow {
   errorMessage: string;
 }
 
+export interface TimezoneWarning {
+  country: string;
+  suppliedTimezone: string;
+  correctTimezone: string;
+  rowCount: number;
+}
+
 export interface ValidationResult {
   valid: Record<string, string>[];
   errors: ErrorRow[];
   dateAutoCorrected: number;
   timeAutoCorrected: number;
-  timezoneAutoCorrected: number;
+  timezoneWarnings: TimezoneWarning[];
 }
 
 export interface UploadResult {

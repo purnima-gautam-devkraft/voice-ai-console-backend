@@ -1,4 +1,4 @@
-import { ValidationResult, ErrorRow, AgentUseCase } from '../types';
+import { ValidationResult, ErrorRow, AgentUseCase, TimezoneWarning } from '../types';
 import { AGENT_IDS, AGENT_DISPLAY_NAMES, COUNTRY_TIMEZONE_MAP, ALLOWED_COUNTRIES } from '../config/constants';
 import {
   validateUserContact,
@@ -18,14 +18,16 @@ import {
 export function validateAgentData(
   rows: Record<string, string>[],
   mandatoryColumns: string[],
-  agentType: AgentUseCase
+  agentType: AgentUseCase,
+  confirmCorrections = false
 ): ValidationResult {
   const expectedAgentId = AGENT_IDS[agentType];
   const valid: Record<string, string>[] = [];
   const errors: ErrorRow[] = [];
   let dateAutoCorrected = 0;
   let timeAutoCorrected = 0;
-  let timezoneAutoCorrected = 0;
+  // key: "country||supplied||correct" → rowCount
+  const tzWarnMap = new Map<string, { country: string; suppliedTimezone: string; correctTimezone: string; rowCount: number }>();
 
   rows.forEach((row, index) => {
     const messages: string[] = [];
@@ -92,7 +94,7 @@ export function validateAgentData(
     }
 
     // 7. user_country_of_residence — must be one of the allowed destination countries.
-    //    timezone — auto-set from the country map, overwriting whatever the client supplied.
+    //    timezone — warn if it doesn't match the canonical value; apply only when confirmCorrections=true.
     if (missingColumns.indexOf('user_country_of_residence') === -1) {
       const rawCountry = String(row['user_country_of_residence'] || '').trim();
       const canonicalTz = COUNTRY_TIMEZONE_MAP[rawCountry.toLowerCase()];
@@ -101,11 +103,15 @@ export function validateAgentData(
           `user_country_of_residence "${rawCountry}" is not a supported destination country. ` +
           `Allowed: ${ALLOWED_COUNTRIES.join(', ')}.`
         );
-      } else {
-        // Auto-set timezone to the canonical value for this country
-        if (row['timezone'] !== canonicalTz) {
+      } else if (row['timezone'] !== canonicalTz) {
+        const supplied = String(row['timezone'] || '').trim() || '(blank)';
+        const key = `${rawCountry}||${supplied}||${canonicalTz}`;
+        const existing = tzWarnMap.get(key);
+        if (existing) { existing.rowCount++; } else {
+          tzWarnMap.set(key, { country: rawCountry, suppliedTimezone: supplied, correctTimezone: canonicalTz, rowCount: 1 });
+        }
+        if (confirmCorrections) {
           row['timezone'] = canonicalTz;
-          timezoneAutoCorrected++;
         }
       }
     }
@@ -122,5 +128,6 @@ export function validateAgentData(
     });
   });
 
-  return { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneAutoCorrected };
+  const timezoneWarnings: TimezoneWarning[] = Array.from(tzWarnMap.values());
+  return { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings };
 }
