@@ -82,6 +82,42 @@ export const AGENT_OPTIONAL_COLUMNS: string[] = [
 ];
 
 /**
+ * Confirmed destination countries and their canonical IANA timezone.
+ * When a row's user_country_of_residence matches a key here (case-insensitive),
+ * the timezone column is auto-set to the mapped value — overwriting whatever
+ * the client supplied. Rows with an unrecognised country are rejected.
+ */
+export const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
+  'canada':               'America/Toronto',
+  'india':                'Asia/Kolkata',
+  'united arab emirates': 'Asia/Dubai',
+  'uae':                  'Asia/Dubai',
+  'united kingdom':       'Europe/London',
+  'uk':                   'Europe/London',
+  'singapore':            'Asia/Singapore',
+  'vietnam':              'Asia/Ho_Chi_Minh',
+  'united states':        'America/New_York',
+  'us':                   'America/New_York',
+  'usa':                  'America/New_York',
+  'saudi arabia':         'Asia/Riyadh',
+  'hong kong':            'Asia/Hong_Kong',
+  'thailand':             'Asia/Bangkok',
+};
+
+export const ALLOWED_COUNTRIES = [
+  'Canada',
+  'India',
+  'United Arab Emirates',
+  'United Kingdom',
+  'Singapore',
+  'Vietnam',
+  'United States',
+  'Saudi Arabia',
+  'Hong Kong',
+  'Thailand',
+];
+
+/**
  * Telephony providers used for outbound calls, and the from_number each one
  * uses. Currently a single provider/number across all agents and campaigns.
  * Update this when new providers/numbers are added — mirrors AGENT_MAPPING's
