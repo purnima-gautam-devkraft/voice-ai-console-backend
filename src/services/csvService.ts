@@ -117,6 +117,24 @@ function dmYyyyToExcelSerial(s: string): number | null {
   return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000) + 25569;
 }
 
+const MONTH_ABBR: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+/**
+ * Convert "DD Mon YYYY" (e.g. "23 Oct 2026") → Excel date serial.
+ */
+function ddMonYyyyToExcelSerial(s: string): number | null {
+  const m = s.trim().match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/);
+  if (!m) return null;
+  const day   = parseInt(m[1], 10);
+  const month = MONTH_ABBR[m[2].toLowerCase().slice(0, 3)];
+  const year  = parseInt(m[3], 10);
+  if (!month || day < 1 || day > 31) return null;
+  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000) + 25569;
+}
+
 /**
  * Convert strict 24-hour "HH:MM" or "HH:MM:SS" → fraction of a day (Excel
  * time representation). Rejects out-of-range hour/minute/second values
@@ -134,10 +152,14 @@ function timeStringToFraction(s: string): number | null {
 
 /**
  * Convert 12-hour "H:MM AM/PM" or "HH:MM:SS AM/PM" → 24-hour "HH:MM".
+ * Strips trailing timezone abbreviations (IST, EST, PST, UTC, etc.) before
+ * matching, so "4:00 PM IST" and "9:00 PM IST " are handled correctly.
  * Returns null if the string doesn't look like a 12-hour time.
  */
 function amPmToHHMM(s: string): string | null {
-  const m = s.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  // Strip trailing whitespace and timezone abbreviations (2-5 uppercase letters)
+  const stripped = s.trim().replace(/\s+[A-Z]{2,5}$/, '');
+  const m = stripped.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
   if (!m) return null;
   let h = parseInt(m[1], 10);
   const mm = parseInt(m[2], 10);
@@ -202,6 +224,8 @@ export function parseDateToSerial(raw: string): number | null {
   if (slash !== null) return slash;
   const dmy = dmYyyyToExcelSerial(s);
   if (dmy !== null) return dmy;
+  const ddmon = ddMonYyyyToExcelSerial(s);
+  if (ddmon !== null) return ddmon;
   const num = Number(s);
   if (!isNaN(num) && num > 25569 && num < 80000) return num; // plausible Excel serial range
   return null;
@@ -209,7 +233,7 @@ export function parseDateToSerial(raw: string): number | null {
 
 /**
  * Parse any recognizable date format → "YYYY-MM-DD" text string.
- * Accepts: YYYY-MM-DD, DD-MM-YYYY, M/D/YYYY, Excel serial number.
+ * Accepts: YYYY-MM-DD, DD-MM-YYYY, M/D/YYYY, DD Mon YYYY, Excel serial number.
  * Returns null when the value cannot be parsed.
  */
 export function parseDateToISO(raw: string): string | null {
