@@ -75,7 +75,7 @@ export function validateAgentData(
     if (missingColumns.indexOf('date_of_call') === -1) {
       const iso = parseDateToISO(row['date_of_call']);
       if (iso === null) {
-        messages.push(`date_of_call "${row['date_of_call']}" is not a recognizable date. Use YYYY-MM-DD, DD-MM-YYYY, or M/D/YYYY.`);
+        messages.push(`date_of_call "${row['date_of_call']}" is not a recognizable date. Use YYYY-MM-DD, DD-MM-YYYY, M/D/YYYY, or DD Mon YYYY (e.g. 23 Oct 2026).`);
       } else if (iso !== row['date_of_call']) {
         row['date_of_call'] = iso;
         dateAutoCorrected++;
