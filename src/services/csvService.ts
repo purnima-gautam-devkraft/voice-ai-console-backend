@@ -279,6 +279,57 @@ export function parseTimeToHHMM(raw: string): string | null {
 }
 
 /**
+ * Convert a local time (HH:MM 24-hour) from one IANA timezone to another,
+ * using the supplied date (YYYY-MM-DD) for DST-aware conversion.
+ * Returns null if conversion fails (invalid timezone, bad format, etc.).
+ *
+ * Algorithm: treat the input as local time in fromTz, compute the true UTC
+ * by iterating the Intl offset once, then format in toTz.
+ */
+export function convertTimezoneHHMM(
+  timeHHMM: string,
+  dateISO: string,
+  fromTz: string,
+  toTz: string
+): string | null {
+  try {
+    const [h, m] = timeHHMM.split(':').map(Number);
+    const [year, month, day] = dateISO.split('-').map(Number);
+    if ([h, m, year, month, day].some(Number.isNaN)) return null;
+
+    // Start with a UTC guess: naively treat the local time as UTC.
+    const utcGuess = new Date(Date.UTC(year, month - 1, day, h, m, 0));
+
+    // Find what that UTC instant looks like in fromTz (to measure the offset).
+    const fromParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: fromTz, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(utcGuess);
+    const fromH = Number(fromParts.find(p => p.type === 'hour')!.value) % 24;
+    const fromM = Number(fromParts.find(p => p.type === 'minute')!.value);
+
+    // Difference between what we wanted and what UTC gives us in fromTz (minutes).
+    let diff = (h * 60 + m) - (fromH * 60 + fromM);
+    // Clamp to [-720, 720] to avoid crossing a full day boundary.
+    if (diff >  720) diff -= 1440;
+    if (diff < -720) diff += 1440;
+
+    // True UTC for the input local time.
+    const trueUTC = new Date(utcGuess.getTime() + diff * 60_000);
+
+    // Format in toTz.
+    const toParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: toTz, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(trueUTC);
+    const toH = Number(toParts.find(p => p.type === 'hour')!.value) % 24;
+    const toM = Number(toParts.find(p => p.type === 'minute')!.value);
+
+    return `${String(toH).padStart(2, '0')}:${String(toM).padStart(2, '0')}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Strict format checks for the phone-number-shaped columns. The source
  * client Excel files frequently corrupt these when the column isn't
  * formatted as Text: `user_contact` collapses into scientific notation
