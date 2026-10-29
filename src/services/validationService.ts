@@ -47,6 +47,8 @@ export function validateAgentData(
   const errors: ErrorRow[] = [];
   let dateAutoCorrected = 0;
   let timeAutoCorrected = 0;
+  let fromNumberNormalized = 0;
+  let countryNameNormalized = 0;
   // key: "country||supplied||correct" → entry
   const tzWarnMap = new Map<string, { country: string; suppliedTimezone: string; correctTimezone: string; rowCount: number }>();
   // key: "detectedCountry||suppliedCountry||suppliedTz" → entry
@@ -82,7 +84,10 @@ export function validateAgentData(
     if (row['user_country_of_residence']) {
       const raw = String(row['user_country_of_residence']).trim();
       const canonical = COUNTRY_NAME_CANONICAL[raw.toLowerCase()];
-      if (canonical) row['user_country_of_residence'] = canonical;
+      if (canonical && canonical !== raw) {
+        row['user_country_of_residence'] = canonical;
+        countryNameNormalized++;
+      }
     }
 
     // 3. user_contact — reject scientific-notation corruption.
@@ -140,6 +145,7 @@ export function validateAgentData(
           `Allowed numbers: ${allowed}.`
         );
       } else {
+        if (normalized !== row['from_number']) fromNumberNormalized++;
         row['from_number'] = normalized;
       }
     }
@@ -304,5 +310,5 @@ export function validateAgentData(
 
   const timezoneWarnings: TimezoneWarning[] = Array.from(tzWarnMap.values());
   const contactCountryWarnings: ContactCountryWarning[] = Array.from(contactWarnMap.values());
-  return { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings, contactCountryWarnings };
+  return { valid, errors, dateAutoCorrected, timeAutoCorrected, fromNumberNormalized, countryNameNormalized, timezoneWarnings, contactCountryWarnings };
 }
