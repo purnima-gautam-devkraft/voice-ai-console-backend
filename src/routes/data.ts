@@ -9,6 +9,7 @@ import {
 import { agentDataToXlsxBuffer } from '../services/csvService';
 import { listAuditEvents } from '../services/auditService';
 import { AGENT_MAPPING } from '../config/agentMapping';
+import { getAgentMappings } from '../services/storageService';
 import { TELEPHONY_PROVIDERS, TelephonyProvider } from '../config/constants';
 import { AuditEventType, University, AgentUseCase } from '../types';
 import { getSupabase } from '../lib/supabase';
@@ -39,13 +40,14 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 function isValidUuid(s: string): boolean { return UUID_RE.test(s); }
 
 // GET /api/data/agent-mapping
-// Reference data — agent name ↔ agent ID lookup for the 5 finalized agents.
-// Accessible to all authenticated roles.
+// Reference data — agent name ↔ agent ID lookup. Fetches live from Supabase
+// agent_mappings table; falls back to hardcoded AGENT_MAPPING for local dev.
 router.get(
   '/agent-mapping',
   authenticateToken,
-  (_req: Request, res: Response): void => {
-    res.json({ agents: AGENT_MAPPING, total: AGENT_MAPPING.length });
+  async (_req: Request, res: Response): Promise<void> => {
+    const agents = await getAgentMappings();
+    res.json({ agents, total: agents.length });
   }
 );
 

@@ -18,7 +18,9 @@ import {
   getUploadErrors,
   getRawFile,
   getTelephonyProviders,
+  getAgentMappings,
 } from '../services/storageService';
+import { AGENT_USE_CASE_NAMES } from '../config/agentMapping';
 import {
   AGENT_USE_CASES,
   AGENT_MANDATORY_COLUMNS,
@@ -113,10 +115,18 @@ router.post(
       const confirmContactCorrections = req.body.confirmContactCorrections === 'true' || req.body.confirmContactCorrections === true;
 
       // Build allowed from_number set from live telephony-providers table
-      const providers = await getTelephonyProviders();
+      const [providers, agentMappings] = await Promise.all([
+        getTelephonyProviders(),
+        getAgentMappings(),
+      ]);
       const allowedFromNumbers = new Set(providers.map((p) => p.fromNumber));
 
-      const { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings, contactCountryWarnings } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent, confirmCorrections, confirmContactCorrections, allowedFromNumbers);
+      // Resolve the expected agent ID from the live agent mapping screen.
+      const expectedAgentName = AGENT_USE_CASE_NAMES[agent];
+      const liveMapping = agentMappings.find((m) => m.agentName === expectedAgentName);
+      const liveAgentId = liveMapping?.agentId;
+
+      const { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings, contactCountryWarnings } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent, confirmCorrections, confirmContactCorrections, allowedFromNumbers, liveAgentId);
 
       const uploadId = uuidv4();
       const now = new Date().toISOString();
