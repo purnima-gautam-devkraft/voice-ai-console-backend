@@ -5,34 +5,20 @@ import {
   getStats,
   getUploadRecord,
   getUploadRows,
+  getTelephonyProviders,
+  saveLocalTelephonyProvider,
+  deleteLocalTelephonyProvider,
 } from '../services/storageService';
 import { agentDataToXlsxBuffer } from '../services/csvService';
 import { listAuditEvents } from '../services/auditService';
 import { AGENT_MAPPING } from '../config/agentMapping';
 import { getAgentMappings } from '../services/storageService';
-import { TELEPHONY_PROVIDERS, TelephonyProvider } from '../config/constants';
+import { TelephonyProvider } from '../config/constants';
 import { AuditEventType, University, AgentUseCase } from '../types';
 import { getSupabase } from '../lib/supabase';
 
 const TELEPHONY_TABLE = 'telephony_providers';
-
-async function getSupabaseProviders(): Promise<TelephonyProvider[]> {
-  try {
-    const { data, error } = await getSupabase()
-      .from(TELEPHONY_TABLE)
-      .select('id, provider_name, from_number, country')
-      .order('created_at', { ascending: true });
-    if (error || !data) return [];
-    return data.map((r: { id: string; provider_name: string; from_number: string; country: string }) => ({
-      id: r.id,
-      providerName: r.provider_name,
-      fromNumber: r.from_number,
-      country: r.country,
-    }));
-  } catch {
-    return [];
-  }
-}
+const USE_SUPABASE = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 const router = Router();
 
@@ -56,7 +42,7 @@ router.get(
   '/telephony-providers',
   authenticateToken,
   async (_req: Request, res: Response): Promise<void> => {
-    const providers = await getSupabaseProviders();
+    const providers = await getTelephonyProviders();
     res.json({ providers, total: providers.length });
   }
 );
@@ -73,6 +59,11 @@ router.post(
       return;
     }
     try {
+      if (!USE_SUPABASE) {
+        const provider = await saveLocalTelephonyProvider(providerName.trim(), fromNumber.trim(), country.trim());
+        res.status(201).json({ provider });
+        return;
+      }
       const { data, error } = await getSupabase()
         .from(TELEPHONY_TABLE)
         .insert({ provider_name: providerName.trim(), from_number: fromNumber.trim(), country: country.trim(), created_by: req.user!.email })
@@ -98,6 +89,12 @@ router.delete(
     const { id } = req.params;
     if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
     try {
+      if (!USE_SUPABASE) {
+        const deleted = await deleteLocalTelephonyProvider(id);
+        if (!deleted) { res.status(404).json({ error: 'Provider not found' }); return; }
+        res.json({ success: true });
+        return;
+      }
       const { error } = await getSupabase().from(TELEPHONY_TABLE).delete().eq('id', id);
       if (error) throw error;
       res.json({ success: true });
