@@ -109,7 +109,8 @@ router.post(
     try {
       const rows = parseRowsFromBuffer(req.file.buffer, req.file.originalname);
       const confirmCorrections = req.body.confirmCorrections === 'true' || req.body.confirmCorrections === true;
-      const { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent, confirmCorrections);
+      const confirmContactCorrections = req.body.confirmContactCorrections === 'true' || req.body.confirmContactCorrections === true;
+      const { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings, contactCountryWarnings } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent, confirmCorrections, confirmContactCorrections);
 
       const uploadId = uuidv4();
       const now = new Date().toISOString();
@@ -119,10 +120,11 @@ router.post(
       let unifiedArchivedToS3 = false;
       let schedulerNotified = false;
 
-      // Block unified file generation until user confirms timezone corrections
+      // Block unified file generation until user confirms contact-country and timezone corrections
+      const hasContactWarnings  = contactCountryWarnings.length > 0 && !confirmContactCorrections;
       const hasTimezoneWarnings = timezoneWarnings.length > 0 && !confirmCorrections;
 
-      if (errors.length === 0 && valid.length > 0 && !hasTimezoneWarnings) {
+      if (errors.length === 0 && valid.length > 0 && !hasContactWarnings && !hasTimezoneWarnings) {
         xlsxBuffer = agentDataToXlsxBuffer(valid, agent, callType);
         const safeStamp = now.replace(/[:.]/g, '-');
         const safeUni = ((university as string) || 'all').replace(/[^a-z0-9]/gi, '-');
@@ -266,6 +268,7 @@ router.post(
         dateAutoCorrected,
         timeAutoCorrected,
         timezoneWarnings,
+        contactCountryWarnings,
       });
     } catch (err) {
       console.error('Upload error:', err);
