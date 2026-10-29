@@ -1,5 +1,6 @@
 import { ValidationResult, ErrorRow, AgentUseCase, TimezoneWarning, ContactCountryWarning } from '../types';
-import { AGENT_IDS, AGENT_DISPLAY_NAMES, COUNTRY_TIMEZONE_MAP, PHONE_CODE_COUNTRIES } from '../config/constants';
+import { AGENT_IDS, AGENT_DISPLAY_NAMES, COUNTRY_TIMEZONE_MAP, PHONE_CODE_COUNTRIES, COUNTRY_NAME_CANONICAL } from '../config/constants';
+// AGENT_IDS is the hardcoded fallback; callers should pass the live expectedAgentId resolved from getAgentMappings().
 import {
   validateUserContact,
   normalizeFromNumber,
@@ -36,9 +37,12 @@ export function validateAgentData(
   agentType: AgentUseCase,
   confirmCorrections = false,
   confirmContactCorrections = false,
-  allowedFromNumbers: Set<string> = new Set()
+  allowedFromNumbers: Set<string> = new Set(),
+  expectedAgentId?: string
 ): ValidationResult {
-  const expectedAgentId = AGENT_IDS[agentType];
+  // Use the live agent ID passed from the caller (fetched from Supabase agent_mappings),
+  // falling back to the hardcoded constant for local dev without Supabase.
+  const resolvedAgentId = expectedAgentId ?? AGENT_IDS[agentType];
   const valid: Record<string, string>[] = [];
   const errors: ErrorRow[] = [];
   let dateAutoCorrected = 0;
@@ -63,15 +67,22 @@ export function validateAgentData(
       messages.push(`Missing required fields: ${missingColumns.join(', ')}`);
     }
 
-    // 2. agent_id must match the fixed ID registered for the selected agent.
+    // 2. agent_id must match the live ID from the agent mapping screen.
     if (missingColumns.indexOf('agent_id') === -1) {
       const actualAgentId = String(row['agent_id'] || '').trim();
-      if (actualAgentId !== expectedAgentId) {
+      if (actualAgentId !== resolvedAgentId) {
         messages.push(
           `agent_id "${actualAgentId || '(empty)'}" does not match the required agent_id ` +
-          `"${expectedAgentId}" for ${AGENT_DISPLAY_NAMES[agentType]}`
+          `"${resolvedAgentId}" for ${AGENT_DISPLAY_NAMES[agentType]}`
         );
       }
+    }
+
+    // 1b. Normalize user_country_of_residence to canonical form.
+    if (row['user_country_of_residence']) {
+      const raw = String(row['user_country_of_residence']).trim();
+      const canonical = COUNTRY_NAME_CANONICAL[raw.toLowerCase()];
+      if (canonical) row['user_country_of_residence'] = canonical;
     }
 
     // 3. user_contact — reject scientific-notation corruption.

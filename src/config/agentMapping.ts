@@ -1,13 +1,16 @@
 /**
  * Voice AI agent mapping: human-readable agent name → backend agent ID.
  *
- * These are the 5 finalized agents currently running live campaigns for
- * GGU / MBA. Same IDs as AGENT_IDS in constants.ts (which drives upload
- * validation) — kept as a separate flat list here since this table's
- * display names are the Voice AI console's registered agent names, not
- * the shorter internal use-case labels shown on the Upload screen.
- * Update this file when new agents are commissioned.
+ * AGENT_MAPPING is the hardcoded fallback used when Supabase is unavailable
+ * (local dev without env vars). Production always fetches live from the
+ * `agent_mappings` Supabase table via getAgentMappings() in storageService.
+ *
+ * AGENT_USE_CASE_NAMES maps each internal AgentUseCase key to the exact
+ * agent name stored in the `agent_mappings` table — used to resolve the
+ * expected agent_id for the selected use case at upload time.
  */
+import { AgentUseCase } from '../types';
+
 export interface AgentMapping {
   agentName: string;
   agentId: string;
@@ -20,3 +23,12 @@ export const AGENT_MAPPING: AgentMapping[] = [
   { agentName: 'New Batch Onboarding Call Agent',                      agentId: '6a16bd59ba7c5d66b6c4cee9' },
   { agentName: 'Assignment Deadline Reminder Agent',                   agentId: '6a5f3d6e4b06e6a040d16d04' },
 ];
+
+/** Maps each upload use case to the exact agent name in the Supabase agent_mappings table. */
+export const AGENT_USE_CASE_NAMES: Record<AgentUseCase, string> = {
+  'live-session-reminder':      'Live Session Reminder Call Agent',
+  'deferral-request':           'Deferral Request (Work or Personal Demands) Agent',
+  'missed-assignment-deadline': 'Missed Assignment Deadline Extension Agent',
+  'new-program-onboarding':     'New Batch Onboarding Call Agent',
+  'deadline-reminder':          'Assignment Deadline Reminder Agent',
+};

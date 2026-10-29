@@ -11,6 +11,7 @@ import * as supabaseStorage from './supabaseStorage';
 import * as fileStorage from './fileStorage';
 import { getSupabase } from '../lib/supabase';
 import { TELEPHONY_PROVIDERS, TelephonyProvider } from '../config/constants';
+import { AGENT_MAPPING, AgentMapping } from '../config/agentMapping';
 
 export type { SaveUploadInput } from './supabaseStorage';
 
@@ -56,5 +57,27 @@ export async function getTelephonyProviders(): Promise<TelephonyProvider[]> {
     }));
   } catch {
     return TELEPHONY_PROVIDERS;
+  }
+}
+
+/**
+ * Fetch agent mappings from Supabase when configured, falling back to the
+ * hardcoded AGENT_MAPPING constant for local dev without Supabase.
+ * This is the live source of truth for the agent_mappings screen.
+ */
+export async function getAgentMappings(): Promise<AgentMapping[]> {
+  if (!USE_SUPABASE) return AGENT_MAPPING;
+  try {
+    const { data, error } = await getSupabase()
+      .from('agent_mappings')
+      .select('agent_name, agent_id')
+      .order('created_at', { ascending: true });
+    if (error || !data || data.length === 0) return AGENT_MAPPING;
+    return data.map((r: { agent_name: string; agent_id: string }) => ({
+      agentName: r.agent_name,
+      agentId:   r.agent_id,
+    }));
+  } catch {
+    return AGENT_MAPPING;
   }
 }

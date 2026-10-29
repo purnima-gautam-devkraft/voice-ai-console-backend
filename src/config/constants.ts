@@ -116,6 +116,47 @@ export const PHONE_LOCAL_DIGITS: Record<string, number[]> = {
 };
 
 /**
+ * Maps common spelling/case variations of country names to the canonical
+ * display name stored in the unified file. Lookup is case-insensitive.
+ * Add entries here whenever a new variation appears in client data.
+ */
+export const COUNTRY_NAME_CANONICAL: Record<string, string> = {
+  // Vietnam
+  'vietnam':              'Vietnam',
+  'viet nam':             'Vietnam',
+  'viet-nam':             'Vietnam',
+  // Thailand
+  'thailand':             'Thailand',
+  'thai land':            'Thailand',
+  // India
+  'india':                'India',
+  // Singapore
+  'singapore':            'Singapore',
+  // Canada
+  'canada':               'Canada',
+  // United Kingdom
+  'united kingdom':       'United Kingdom',
+  'uk':                   'United Kingdom',
+  'great britain':        'United Kingdom',
+  'britain':              'United Kingdom',
+  // United States
+  'united states':        'United States',
+  'united states of america': 'United States',
+  'us':                   'United States',
+  'usa':                  'United States',
+  // United Arab Emirates
+  'united arab emirates': 'United Arab Emirates',
+  'uae':                  'United Arab Emirates',
+  // Saudi Arabia
+  'saudi arabia':         'Saudi Arabia',
+  'saudi':                'Saudi Arabia',
+  // Hong Kong
+  'hong kong':            'Hong Kong',
+  'hk':                   'Hong Kong',
+  'hong-kong':            'Hong Kong',
+};
+
+/**
  * Confirmed destination countries and their canonical IANA timezone.
  * When a row's user_country_of_residence matches a key here (case-insensitive),
  * the timezone column is auto-set to the mapped value — overwriting whatever
