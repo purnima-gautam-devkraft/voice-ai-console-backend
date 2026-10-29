@@ -92,6 +92,24 @@ export interface ErrorRow {
   errorMessage: string;
 }
 
+export type ChangeType =
+  | 'country_name'      // user_country_of_residence spelling corrected
+  | 'from_number'       // leading 0 / + prefix added
+  | 'date_format'       // date_of_call normalised to YYYY-MM-DD
+  | 'time_format'       // time_of_call normalised to HH:MM
+  | 'timezone'          // timezone corrected to canonical IANA value
+  | 'contact_country'   // country + timezone updated from phone-code detection
+  | 'time_converted';   // time_of_call converted from IST to local timezone
+
+export interface ChangeRecord {
+  rowNumber: number;
+  userId: string;
+  changeType: ChangeType;
+  field: string;
+  oldValue: string;
+  newValue: string;
+}
+
 export interface TimezoneWarning {
   country: string;
   suppliedTimezone: string;
@@ -116,6 +134,7 @@ export interface ValidationResult {
   countryNameNormalized: number;
   timezoneWarnings: TimezoneWarning[];
   contactCountryWarnings: ContactCountryWarning[];
+  changes: ChangeRecord[];
 }
 
 export interface UploadResult {

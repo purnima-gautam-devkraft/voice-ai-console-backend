@@ -1,4 +1,4 @@
-import { ValidationResult, ErrorRow, AgentUseCase, TimezoneWarning, ContactCountryWarning } from '../types';
+import { ValidationResult, ErrorRow, AgentUseCase, TimezoneWarning, ContactCountryWarning, ChangeRecord } from '../types';
 import { AGENT_IDS, AGENT_DISPLAY_NAMES, COUNTRY_TIMEZONE_MAP, PHONE_CODE_COUNTRIES, COUNTRY_NAME_CANONICAL } from '../config/constants';
 // AGENT_IDS is the hardcoded fallback; callers should pass the live expectedAgentId resolved from getAgentMappings().
 import {
@@ -45,6 +45,7 @@ export function validateAgentData(
   const resolvedAgentId = expectedAgentId ?? AGENT_IDS[agentType];
   const valid: Record<string, string>[] = [];
   const errors: ErrorRow[] = [];
+  const changes: ChangeRecord[] = [];
   let dateAutoCorrected = 0;
   let timeAutoCorrected = 0;
   let fromNumberNormalized = 0;
@@ -53,6 +54,9 @@ export function validateAgentData(
   const tzWarnMap = new Map<string, { country: string; suppliedTimezone: string; correctTimezone: string; rowCount: number }>();
   // key: "detectedCountry||suppliedCountry||suppliedTz" → entry
   const contactWarnMap = new Map<string, { detectedCountry: string; suppliedCountry: string; suppliedTimezone: string; suggestedTimezone: string; rowCount: number }>();
+
+  const rowNum = (index: number) => index + 2; // 1-indexed, +1 for header
+  const userId = (row: Record<string, string>) => String(row['user_id'] || '—');
 
   rows.forEach((row, index) => {
     const messages: string[] = [];
@@ -87,6 +91,7 @@ export function validateAgentData(
       if (canonical && canonical !== raw) {
         row['user_country_of_residence'] = canonical;
         countryNameNormalized++;
+        changes.push({ rowNumber: rowNum(index), userId: userId(row), changeType: 'country_name', field: 'user_country_of_residence', oldValue: raw, newValue: canonical });
       }
     }
 
@@ -127,8 +132,14 @@ export function validateAgentData(
             });
           }
           if (confirmContactCorrections) {
+            const oldCountry = row['user_country_of_residence'];
+            const oldTz = row['timezone'] || '';
             row['user_country_of_residence'] = detectedCountry;
-            if (suggestedTz) row['timezone'] = suggestedTz;
+            changes.push({ rowNumber: rowNum(index), userId: userId(row), changeType: 'contact_country', field: 'user_country_of_residence', oldValue: oldCountry, newValue: detectedCountry });
+            if (suggestedTz) {
+              changes.push({ rowNumber: rowNum(index), userId: userId(row), changeType: 'contact_country', field: 'timezone', oldValue: oldTz, newValue: suggestedTz });
+              row['timezone'] = suggestedTz;
+            }
           }
         }
       }
@@ -145,7 +156,10 @@ export function validateAgentData(
           `Allowed numbers: ${allowed}.`
         );
       } else {
-        if (normalized !== row['from_number']) fromNumberNormalized++;
+        if (normalized !== row['from_number']) {
+          fromNumberNormalized++;
+          changes.push({ rowNumber: rowNum(index), userId: userId(row), changeType: 'from_number', field: 'from_number', oldValue: row['from_number'], newValue: normalized });
+        }
         row['from_number'] = normalized;
       }
     }
@@ -156,6 +170,7 @@ export function validateAgentData(
       if (iso === null) {
         messages.push(`date_of_call "${row['date_of_call']}" is not a recognizable date. Use YYYY-MM-DD, DD-MM-YYYY, M/D/YYYY, or DD Mon YYYY (e.g. 23 Oct 2026).`);
       } else if (iso !== row['date_of_call']) {
+        changes.push({ rowNumber: rowNum(index), userId: userId(row), changeType: 'date_format', field: 'date_of_call', oldValue: row['date_of_call'], newValue: iso });
         row['date_of_call'] = iso;
         dateAutoCorrected++;
       }
@@ -167,6 +182,7 @@ export function validateAgentData(
       if (hhmm === null) {
         messages.push(`time_of_call "${row['time_of_call']}" is not a recognizable time. Use HH:MM (24-hour) or H:MM AM/PM.`);
       } else if (hhmm !== row['time_of_call']) {
+        changes.push({ rowNumber: rowNum(index), userId: userId(row), changeType: 'time_format', field: 'time_of_call', oldValue: row['time_of_call'], newValue: hhmm });
         row['time_of_call'] = hhmm;
         timeAutoCorrected++;
       }
@@ -187,6 +203,7 @@ export function validateAgentData(
           tzWarnMap.set(key, { country: rawCountry, suppliedTimezone: supplied, correctTimezone: canonicalTz, rowCount: 1 });
         }
         if (confirmCorrections) {
+          changes.push({ rowNumber: rowNum(index), userId: userId(row), changeType: 'timezone', field: 'timezone', oldValue: supplied, newValue: canonicalTz });
           row['timezone'] = canonicalTz;
         }
       }
@@ -230,6 +247,7 @@ export function validateAgentData(
             callTime, row['date_of_call'], 'Asia/Kolkata', canonicalTz
           );
           if (converted !== null) {
+            changes.push({ rowNumber: rowNum(index), userId: userId(row), changeType: 'time_converted', field: 'time_of_call', oldValue: `${callTime} IST`, newValue: `${converted} ${canonicalTz}` });
             callTime = converted;
             row['time_of_call'] = callTime;
           }
@@ -310,5 +328,5 @@ export function validateAgentData(
 
   const timezoneWarnings: TimezoneWarning[] = Array.from(tzWarnMap.values());
   const contactCountryWarnings: ContactCountryWarning[] = Array.from(contactWarnMap.values());
-  return { valid, errors, dateAutoCorrected, timeAutoCorrected, fromNumberNormalized, countryNameNormalized, timezoneWarnings, contactCountryWarnings };
+  return { valid, errors, dateAutoCorrected, timeAutoCorrected, fromNumberNormalized, countryNameNormalized, timezoneWarnings, contactCountryWarnings, changes };
 }
