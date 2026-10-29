@@ -121,7 +121,7 @@ export function validateAgentData(
     //    then verify it exists in the live telephony-providers list.
     if (missingColumns.indexOf('from_number') === -1) {
       const normalized = normalizeFromNumber(row['from_number']);
-      if (allowedFromNumbers.size > 0 && !allowedFromNumbers.has(normalized)) {
+      if (!allowedFromNumbers.has(normalized)) {
         const allowed = Array.from(allowedFromNumbers).join(', ');
         messages.push(
           `from_number "${normalized}" is not registered in the Telephony Providers console. ` +
