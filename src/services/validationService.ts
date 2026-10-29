@@ -231,6 +231,54 @@ export function validateAgentData(
       }
     }
 
+    // 9. live-session-reminder: Session Day must match the actual weekday of
+    //    Session Date, and Session Date must be on or after date_of_call.
+    if (agentType === 'live-session-reminder') {
+      const rawSessionDate = String(row['Session Date'] || '').trim();
+      const rawSessionDay  = String(row['Session Day']  || '').trim();
+
+      if (rawSessionDate) {
+        const sessionDateISO = parseDateToISO(rawSessionDate);
+        if (!sessionDateISO) {
+          messages.push(
+            `Session Date "${rawSessionDate}" is not a recognizable date. ` +
+            `Use YYYY-MM-DD, DD-MM-YYYY, M/D/YYYY, or DD Mon YYYY (e.g. 01 Nov 2026).`
+          );
+        } else {
+          // Check Session Day matches the actual weekday of Session Date.
+          if (rawSessionDay) {
+            const WEEKDAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const WEEKDAYS_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const [sy, sm, sd] = sessionDateISO.split('-').map(Number);
+            const dayIndex  = new Date(Date.UTC(sy, sm - 1, sd)).getUTCDay();
+            const actualFull = WEEKDAYS_FULL[dayIndex];
+            const actualAbbr = WEEKDAYS_ABBR[dayIndex];
+            const supplied   = rawSessionDay.toLowerCase();
+            if (
+              supplied !== actualFull.toLowerCase() &&
+              supplied !== actualAbbr.toLowerCase()
+            ) {
+              messages.push(
+                `Session Day "${rawSessionDay}" does not match Session Date "${rawSessionDate}" ` +
+                `which falls on a ${actualFull}.`
+              );
+            }
+          }
+
+          // Session Date must be on or after date_of_call.
+          const callDateISO = String(row['date_of_call'] || '').trim();
+          if (callDateISO && /^\d{4}-\d{2}-\d{2}$/.test(callDateISO)) {
+            if (sessionDateISO < callDateISO) {
+              messages.push(
+                `Session Date "${rawSessionDate}" (${sessionDateISO}) is before ` +
+                `date_of_call (${callDateISO}). The session must be on or after the call date.`
+              );
+            }
+          }
+        }
+      }
+    }
+
     if (messages.length === 0) {
       valid.push(row);
       return;
