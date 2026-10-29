@@ -12,6 +12,23 @@ import * as fileStorage from './fileStorage';
 import { getSupabase } from '../lib/supabase';
 import { TELEPHONY_PROVIDERS, TelephonyProvider } from '../config/constants';
 import { AGENT_MAPPING, AgentMapping } from '../config/agentMapping';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+
+const LOCAL_PROVIDERS_FILE = path.resolve(__dirname, '../../data/telephony_providers.json');
+
+function readLocalProviders(): TelephonyProvider[] {
+  try {
+    if (!fs.existsSync(LOCAL_PROVIDERS_FILE)) return [...TELEPHONY_PROVIDERS];
+    return JSON.parse(fs.readFileSync(LOCAL_PROVIDERS_FILE, 'utf-8'));
+  } catch { return [...TELEPHONY_PROVIDERS]; }
+}
+
+function writeLocalProviders(providers: TelephonyProvider[]): void {
+  fs.mkdirSync(path.dirname(LOCAL_PROVIDERS_FILE), { recursive: true });
+  fs.writeFileSync(LOCAL_PROVIDERS_FILE, JSON.stringify(providers, null, 2));
+}
 
 export type { SaveUploadInput } from './supabaseStorage';
 
@@ -42,7 +59,7 @@ export const getStats          = impl.getStats;
  * the hardcoded TELEPHONY_PROVIDERS constant for local dev without Supabase.
  */
 export async function getTelephonyProviders(): Promise<TelephonyProvider[]> {
-  if (!USE_SUPABASE) return TELEPHONY_PROVIDERS;
+  if (!USE_SUPABASE) return readLocalProviders();
   try {
     const { data, error } = await getSupabase()
       .from('telephony_providers')
@@ -65,6 +82,22 @@ export async function getTelephonyProviders(): Promise<TelephonyProvider[]> {
  * hardcoded AGENT_MAPPING constant for local dev without Supabase.
  * This is the live source of truth for the agent_mappings screen.
  */
+export async function saveLocalTelephonyProvider(providerName: string, fromNumber: string, country: string): Promise<TelephonyProvider> {
+  const providers = readLocalProviders();
+  const newProvider: TelephonyProvider = { id: crypto.randomUUID(), providerName, fromNumber, country };
+  providers.push(newProvider);
+  writeLocalProviders(providers);
+  return newProvider;
+}
+
+export async function deleteLocalTelephonyProvider(id: string): Promise<boolean> {
+  const providers = readLocalProviders();
+  const filtered = providers.filter((p) => p.id !== id);
+  if (filtered.length === providers.length) return false;
+  writeLocalProviders(filtered);
+  return true;
+}
+
 export async function getAgentMappings(): Promise<AgentMapping[]> {
   if (!USE_SUPABASE) return AGENT_MAPPING;
   try {
