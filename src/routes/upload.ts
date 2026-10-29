@@ -126,7 +126,7 @@ router.post(
       const liveMapping = agentMappings.find((m) => m.agentName === expectedAgentName);
       const liveAgentId = liveMapping?.agentId;
 
-      const { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings, contactCountryWarnings } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent, confirmCorrections, confirmContactCorrections, allowedFromNumbers, liveAgentId);
+      const { valid, errors, dateAutoCorrected, timeAutoCorrected, fromNumberNormalized, countryNameNormalized, timezoneWarnings, contactCountryWarnings } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent, confirmCorrections, confirmContactCorrections, allowedFromNumbers, liveAgentId);
 
       const uploadId = uuidv4();
       const now = new Date().toISOString();
@@ -283,6 +283,8 @@ router.post(
         schedulerNotified,
         dateAutoCorrected,
         timeAutoCorrected,
+        fromNumberNormalized,
+        countryNameNormalized,
         timezoneWarnings,
         contactCountryWarnings,
       });
