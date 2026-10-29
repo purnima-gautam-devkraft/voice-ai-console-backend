@@ -1,6 +1,14 @@
 import { getSupabase } from '../lib/supabase';
 import { User, UserRole } from '../types';
 
+const USE_SUPABASE = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+// Local dev users — only active when Supabase is not configured.
+const LOCAL_USERS: (User & { password: string })[] = [
+  { id: 'local-admin', email: 'admin@voiceai.com', name: 'Admin', role: 'system_admin', password: 'admin123' },
+  { id: 'local-dm',    email: 'dm@voiceai.com',    name: 'Data Manager', role: 'data_manager', password: 'dm123' },
+];
+
 function userFromSupabase(su: {
   id: string;
   email?: string;
@@ -16,12 +24,24 @@ function userFromSupabase(su: {
 }
 
 export async function signInWithSupabase(email: string, password: string): Promise<User | null> {
+  if (!USE_SUPABASE) {
+    const match = LOCAL_USERS.find((u) => u.email === email && u.password === password);
+    if (!match) return null;
+    const { password: _pw, ...user } = match;
+    return user;
+  }
   const { data, error } = await getSupabase().auth.signInWithPassword({ email, password });
   if (error || !data.user) return null;
   return userFromSupabase(data.user);
 }
 
 export async function findUserById(userId: string): Promise<User | null> {
+  if (!USE_SUPABASE) {
+    const match = LOCAL_USERS.find((u) => u.id === userId);
+    if (!match) return null;
+    const { password: _pw, ...user } = match;
+    return user;
+  }
   const { data, error } = await getSupabase().auth.admin.getUserById(userId);
   if (error || !data.user) return null;
   return userFromSupabase(data.user);
