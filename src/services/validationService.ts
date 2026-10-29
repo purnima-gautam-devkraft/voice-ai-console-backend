@@ -1,5 +1,5 @@
-import { ValidationResult, ErrorRow, AgentUseCase, TimezoneWarning } from '../types';
-import { AGENT_IDS, AGENT_DISPLAY_NAMES, COUNTRY_TIMEZONE_MAP, ALLOWED_COUNTRIES } from '../config/constants';
+import { ValidationResult, ErrorRow, AgentUseCase, TimezoneWarning, ContactCountryWarning } from '../types';
+import { AGENT_IDS, AGENT_DISPLAY_NAMES, COUNTRY_TIMEZONE_MAP, ALLOWED_COUNTRIES, PHONE_CODE_COUNTRIES } from '../config/constants';
 import {
   validateUserContact,
   validateFromNumber,
@@ -7,6 +7,21 @@ import {
   parseDateToISO,
   parseTimeToHHMM,
 } from './csvService';
+
+/**
+ * Detect which countries are implied by a phone number's country code.
+ * Strips leading +/0, then tries longest prefix first.
+ * Returns null when no recognised prefix is found.
+ */
+function detectPhoneCountries(raw: string): { code: string; countries: string[] } | null {
+  const digits = String(raw ?? '').trim().replace(/^\+/, '').replace(/^0+/, '');
+  for (const [code, countries] of PHONE_CODE_COUNTRIES) {
+    if (countries.length > 0 && digits.startsWith(code)) {
+      return { code, countries };
+    }
+  }
+  return null;
+}
 
 /**
  * Agent-based upload validation: mandatory columns must all be present
@@ -19,15 +34,18 @@ export function validateAgentData(
   rows: Record<string, string>[],
   mandatoryColumns: string[],
   agentType: AgentUseCase,
-  confirmCorrections = false
+  confirmCorrections = false,
+  confirmContactCorrections = false
 ): ValidationResult {
   const expectedAgentId = AGENT_IDS[agentType];
   const valid: Record<string, string>[] = [];
   const errors: ErrorRow[] = [];
   let dateAutoCorrected = 0;
   let timeAutoCorrected = 0;
-  // key: "country||supplied||correct" → rowCount
+  // key: "country||supplied||correct" → entry
   const tzWarnMap = new Map<string, { country: string; suppliedTimezone: string; correctTimezone: string; rowCount: number }>();
+  // key: "detectedCountry||suppliedCountry||suppliedTz" → entry
+  const contactWarnMap = new Map<string, { detectedCountry: string; suppliedCountry: string; suppliedTimezone: string; suggestedTimezone: string; rowCount: number }>();
 
   rows.forEach((row, index) => {
     const messages: string[] = [];
@@ -59,6 +77,44 @@ export function validateAgentData(
     if (missingColumns.indexOf('user_contact') === -1) {
       const contactError = validateUserContact(row['user_contact']);
       if (contactError) messages.push(contactError);
+    }
+
+    // 3b. Contact-country triangulation: detect country from phone code and
+    //     compare with user_country_of_residence + timezone.
+    //     Runs only when both user_contact and user_country_of_residence are present.
+    const contactPresent = missingColumns.indexOf('user_contact') === -1;
+    const countryPresent  = missingColumns.indexOf('user_country_of_residence') === -1;
+    if (contactPresent && countryPresent) {
+      const detected = detectPhoneCountries(row['user_contact']);
+      if (detected) {
+        const suppliedCountry = String(row['user_country_of_residence'] || '').trim();
+        // Check whether supplied country is in the detected set
+        const countryMatch = detected.countries.some(
+          (c) => c.toLowerCase() === suppliedCountry.toLowerCase()
+        );
+        if (!countryMatch) {
+          const detectedCountry = detected.countries[0];
+          const suppliedTz = String(row['timezone'] || '').trim() || '(blank)';
+          const suggestedTz = COUNTRY_TIMEZONE_MAP[detectedCountry.toLowerCase()] || '';
+          const key = `${detectedCountry}||${suppliedCountry}||${suppliedTz}`;
+          const existing = contactWarnMap.get(key);
+          if (existing) {
+            existing.rowCount++;
+          } else {
+            contactWarnMap.set(key, {
+              detectedCountry,
+              suppliedCountry,
+              suppliedTimezone: suppliedTz,
+              suggestedTimezone: suggestedTz,
+              rowCount: 1,
+            });
+          }
+          if (confirmContactCorrections) {
+            row['user_country_of_residence'] = detectedCountry;
+            if (suggestedTz) row['timezone'] = suggestedTz;
+          }
+        }
+      }
     }
 
     // 4. from_number — auto-restore stripped leading zero; reject other issues.
@@ -129,5 +185,6 @@ export function validateAgentData(
   });
 
   const timezoneWarnings: TimezoneWarning[] = Array.from(tzWarnMap.values());
-  return { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings };
+  const contactCountryWarnings: ContactCountryWarning[] = Array.from(contactWarnMap.values());
+  return { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings, contactCountryWarnings };
 }

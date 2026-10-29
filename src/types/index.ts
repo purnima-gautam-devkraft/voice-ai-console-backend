@@ -99,12 +99,21 @@ export interface TimezoneWarning {
   rowCount: number;
 }
 
+export interface ContactCountryWarning {
+  detectedCountry: string;       // country inferred from contact phone code
+  suppliedCountry: string;       // user_country_of_residence in the file
+  suppliedTimezone: string;      // timezone in the file
+  suggestedTimezone: string;     // canonical timezone for detectedCountry
+  rowCount: number;
+}
+
 export interface ValidationResult {
   valid: Record<string, string>[];
   errors: ErrorRow[];
   dateAutoCorrected: number;
   timeAutoCorrected: number;
   timezoneWarnings: TimezoneWarning[];
+  contactCountryWarnings: ContactCountryWarning[];
 }
 
 export interface UploadResult {

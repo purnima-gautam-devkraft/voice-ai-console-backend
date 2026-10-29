@@ -82,6 +82,24 @@ export const AGENT_OPTIONAL_COLUMNS: string[] = [
 ];
 
 /**
+ * Phone country code → list of matching countries (longest prefix first so
+ * the detection loop matches 971/966/852 before the single-digit fallbacks).
+ * Countries with shared codes (+1 for US and Canada) are grouped together.
+ */
+export const PHONE_CODE_COUNTRIES: [string, string[]][] = [
+  ['971', ['United Arab Emirates']],
+  ['966', ['Saudi Arabia']],
+  ['852', ['Hong Kong']],
+  ['855', []],                            // Cambodia — not an allowed destination
+  ['84',  ['Vietnam']],
+  ['66',  ['Thailand']],
+  ['65',  ['Singapore']],
+  ['44',  ['United Kingdom']],
+  ['91',  ['India']],
+  ['1',   ['United States', 'Canada']],
+];
+
+/**
  * Confirmed destination countries and their canonical IANA timezone.
  * When a row's user_country_of_residence matches a key here (case-insensitive),
  * the timezone column is auto-set to the mapped value — overwriting whatever
