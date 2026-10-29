@@ -5,6 +5,7 @@ import {
   normalizeFromNumber,
   parseDateToISO,
   parseTimeToHHMM,
+  convertTimezoneHHMM,
 } from './csvService';
 
 /**
@@ -170,6 +171,62 @@ export function validateAgentData(
         }
         if (confirmCorrections) {
           row['timezone'] = canonicalTz;
+        }
+      }
+    }
+
+    // 8. IST-to-local conversion and calling-hours check (10:00–19:00).
+    //
+    //    • If the supplied timezone is IST (Asia/Kolkata) and the target
+    //      country's canonical timezone is different, convert time_of_call
+    //      from IST to the country's local timezone and update the row.
+    //
+    //    • After any conversion, check that the time falls within 10:00–19:00
+    //      in the effective local timezone. Times outside this window are a
+    //      hard error — the row is rejected.
+    //
+    //    Runs only when both date and time were successfully normalised (so the
+    //    conversion receives clean inputs). Accumulates alongside other errors.
+    {
+      const timeIsValid = /^\d{2}:\d{2}$/.test(String(row['time_of_call'] || ''));
+      const dateIsValid = /^\d{4}-\d{2}-\d{2}$/.test(String(row['date_of_call'] || ''));
+      const hasTimeCol  = missingColumns.indexOf('time_of_call') === -1;
+      const hasDateCol  = missingColumns.indexOf('date_of_call') === -1;
+
+      if (hasTimeCol && hasDateCol && timeIsValid && dateIsValid) {
+        const rawCountry = String(row['user_country_of_residence'] || '').trim();
+        const suppliedTz = String(row['timezone'] || '').trim();
+
+        // Canonical timezone for the country; fall back to supplied value when unknown.
+        const canonicalTz = COUNTRY_TIMEZONE_MAP[rawCountry.toLowerCase()] || suppliedTz;
+
+        let callTime = row['time_of_call'];
+
+        // Detect IST: either the IANA name, the abbreviation, or the full name.
+        const isIST =
+          suppliedTz === 'Asia/Kolkata' ||
+          suppliedTz.toUpperCase() === 'IST' ||
+          suppliedTz === 'Indian Standard Time';
+
+        if (isIST && canonicalTz && canonicalTz !== 'Asia/Kolkata') {
+          const converted = convertTimezoneHHMM(
+            callTime, row['date_of_call'], 'Asia/Kolkata', canonicalTz
+          );
+          if (converted !== null) {
+            callTime = converted;
+            row['time_of_call'] = callTime;
+          }
+        }
+
+        // Calling-hours check in the effective local timezone.
+        const [hh, mm] = callTime.split(':').map(Number);
+        const totalMin = hh * 60 + mm;
+        if (totalMin < 10 * 60 || totalMin >= 19 * 60) {
+          const tzLabel = canonicalTz || suppliedTz || 'local timezone';
+          messages.push(
+            `time_of_call "${callTime}" (${tzLabel}) is outside the allowed calling window ` +
+            `10:00–19:00. Please reschedule within this range.`
+          );
         }
       }
     }
