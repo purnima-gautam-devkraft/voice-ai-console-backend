@@ -100,6 +100,22 @@ export const PHONE_CODE_COUNTRIES: [string, string[]][] = [
 ];
 
 /**
+ * Expected number of LOCAL digits (after the country code) for each country code.
+ * Multiple values mean any of those lengths is valid (e.g. Vietnam allows 9 or 10).
+ */
+export const PHONE_LOCAL_DIGITS: Record<string, number[]> = {
+  '971': [9],       // UAE: 9XXXXXXXX
+  '966': [9],       // Saudi Arabia: 9XXXXXXXX
+  '852': [8],       // Hong Kong: 8 digits
+  '84':  [9, 10],   // Vietnam: 9-digit (post-2018) or legacy 10-digit
+  '66':  [9],       // Thailand: 9 digits
+  '65':  [8],       // Singapore: 8 digits
+  '44':  [10],      // United Kingdom: 10 digits
+  '91':  [10],      // India: 10 digits
+  '1':   [10],      // United States / Canada: 10 digits
+};
+
+/**
  * Confirmed destination countries and their canonical IANA timezone.
  * When a row's user_country_of_residence matches a key here (case-insensitive),
  * the timezone column is auto-set to the mapped value — overwriting whatever

@@ -5,6 +5,8 @@ import {
   UNIFIED_CSV_COLUMNS,
   AGENT_OPTIONAL_COLUMNS,
   AGENT_SPECIFIC_COLUMNS,
+  PHONE_CODE_COUNTRIES,
+  PHONE_LOCAL_DIGITS,
 } from '../config/constants';
 import { AgentUseCase } from '../types';
 
@@ -293,13 +295,41 @@ export function isScientificNotation(raw: string): boolean {
 export function validateUserContact(raw: string): string | null {
   const s = String(raw ?? '').trim();
   if (!s) return 'user_contact is empty';
+
   if (isScientificNotation(s)) {
     return 'user_contact looks like a corrupted number (scientific notation). ' +
       'Format the User Contact column as Text in the source file before re-uploading.';
   }
-  if (!/^\+?\d{8,15}$/.test(s)) {
-    return 'user_contact must contain only digits (optionally a leading +), 8–15 digits long.';
+
+  if (!/^\+?\d{6,15}$/.test(s)) {
+    return 'user_contact must contain only digits (optionally a leading +), e.g. +6569515435 or 919876543210.';
   }
+
+  // Strip leading + and any leading zeros to get the raw digit string, then
+  // try each country-code prefix (longest first) and validate local-digit count.
+  const digits = s.replace(/^\+/, '').replace(/^0+/, '');
+  for (const [code, countries] of PHONE_CODE_COUNTRIES) {
+    if (countries.length === 0) continue;   // skip non-destination codes (e.g. 855)
+    if (!digits.startsWith(code)) continue;
+
+    const localDigits = digits.length - code.length;
+    const allowed = PHONE_LOCAL_DIGITS[code];
+    if (!allowed) break;
+
+    if (!allowed.includes(localDigits)) {
+      const countryLabel = countries.length === 1 ? countries[0] : countries.join(' / ');
+      const expected = allowed.length === 1
+        ? `${allowed[0]} digits`
+        : `${allowed[0]} or ${allowed[allowed.length - 1]} digits`;
+      return (
+        `user_contact "${s}" has ${localDigits} digit${localDigits === 1 ? '' : 's'} after the ` +
+        `${countryLabel} country code (+${code}) — expected ${expected}. ` +
+        `Check for missing or extra digits.`
+      );
+    }
+    break; // code matched and digit count is valid
+  }
+
   return null;
 }
 
