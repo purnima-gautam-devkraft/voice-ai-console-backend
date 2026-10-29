@@ -9,6 +9,8 @@
  */
 import * as supabaseStorage from './supabaseStorage';
 import * as fileStorage from './fileStorage';
+import { getSupabase } from '../lib/supabase';
+import { TELEPHONY_PROVIDERS, TelephonyProvider } from '../config/constants';
 
 export type { SaveUploadInput } from './supabaseStorage';
 
@@ -33,3 +35,26 @@ export const getUploadRows     = impl.getUploadRows;
 export const getRawFile        = impl.getRawFile;
 export const listUploads       = impl.listUploads;
 export const getStats          = impl.getStats;
+
+/**
+ * Fetch telephony providers from Supabase when configured, falling back to
+ * the hardcoded TELEPHONY_PROVIDERS constant for local dev without Supabase.
+ */
+export async function getTelephonyProviders(): Promise<TelephonyProvider[]> {
+  if (!USE_SUPABASE) return TELEPHONY_PROVIDERS;
+  try {
+    const { data, error } = await getSupabase()
+      .from('telephony_providers')
+      .select('id, provider_name, from_number, country')
+      .order('created_at', { ascending: true });
+    if (error || !data || data.length === 0) return TELEPHONY_PROVIDERS;
+    return data.map((r: { id: string; provider_name: string; from_number: string; country: string }) => ({
+      id: r.id,
+      providerName: r.provider_name,
+      fromNumber: r.from_number,
+      country:    r.country,
+    }));
+  } catch {
+    return TELEPHONY_PROVIDERS;
+  }
+}

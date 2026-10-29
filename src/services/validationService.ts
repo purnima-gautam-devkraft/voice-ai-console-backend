@@ -2,7 +2,6 @@ import { ValidationResult, ErrorRow, AgentUseCase, TimezoneWarning, ContactCount
 import { AGENT_IDS, AGENT_DISPLAY_NAMES, COUNTRY_TIMEZONE_MAP, PHONE_CODE_COUNTRIES } from '../config/constants';
 import {
   validateUserContact,
-  validateFromNumber,
   normalizeFromNumber,
   parseDateToISO,
   parseTimeToHHMM,
@@ -35,7 +34,8 @@ export function validateAgentData(
   mandatoryColumns: string[],
   agentType: AgentUseCase,
   confirmCorrections = false,
-  confirmContactCorrections = false
+  confirmContactCorrections = false,
+  allowedFromNumbers: Set<string> = new Set()
 ): ValidationResult {
   const expectedAgentId = AGENT_IDS[agentType];
   const valid: Record<string, string>[] = [];
@@ -117,13 +117,18 @@ export function validateAgentData(
       }
     }
 
-    // 4. from_number — auto-restore stripped leading zero; reject other issues.
+    // 4. from_number — normalize (restore leading 0 for India, add + for international),
+    //    then verify it exists in the live telephony-providers list.
     if (missingColumns.indexOf('from_number') === -1) {
-      const fromNumberError = validateFromNumber(row['from_number']);
-      if (fromNumberError) {
-        messages.push(fromNumberError);
+      const normalized = normalizeFromNumber(row['from_number']);
+      if (allowedFromNumbers.size > 0 && !allowedFromNumbers.has(normalized)) {
+        const allowed = Array.from(allowedFromNumbers).join(', ');
+        messages.push(
+          `from_number "${normalized}" is not registered in the Telephony Providers console. ` +
+          `Allowed numbers: ${allowed}.`
+        );
       } else {
-        row['from_number'] = normalizeFromNumber(row['from_number']);
+        row['from_number'] = normalized;
       }
     }
 

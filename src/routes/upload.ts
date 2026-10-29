@@ -17,6 +17,7 @@ import {
   getUploadRecord,
   getUploadErrors,
   getRawFile,
+  getTelephonyProviders,
 } from '../services/storageService';
 import {
   AGENT_USE_CASES,
@@ -110,7 +111,12 @@ router.post(
       const rows = parseRowsFromBuffer(req.file.buffer, req.file.originalname);
       const confirmCorrections = req.body.confirmCorrections === 'true' || req.body.confirmCorrections === true;
       const confirmContactCorrections = req.body.confirmContactCorrections === 'true' || req.body.confirmContactCorrections === true;
-      const { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings, contactCountryWarnings } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent, confirmCorrections, confirmContactCorrections);
+
+      // Build allowed from_number set from live telephony-providers table
+      const providers = await getTelephonyProviders();
+      const allowedFromNumbers = new Set(providers.map((p) => p.fromNumber));
+
+      const { valid, errors, dateAutoCorrected, timeAutoCorrected, timezoneWarnings, contactCountryWarnings } = validateAgentData(rows, AGENT_MANDATORY_COLUMNS, agent, confirmCorrections, confirmContactCorrections, allowedFromNumbers);
 
       const uploadId = uuidv4();
       const now = new Date().toISOString();
