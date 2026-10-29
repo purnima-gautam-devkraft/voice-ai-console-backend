@@ -138,18 +138,6 @@ export const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
   'thailand':             'Asia/Bangkok',
 };
 
-export const ALLOWED_COUNTRIES = [
-  'Canada',
-  'India',
-  'United Arab Emirates',
-  'United Kingdom',
-  'Singapore',
-  'Vietnam',
-  'United States',
-  'Saudi Arabia',
-  'Hong Kong',
-  'Thailand',
-];
 
 /**
  * Telephony providers used for outbound calls, and the from_number each one
