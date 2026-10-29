@@ -311,7 +311,8 @@ export function validateUserContact(raw: string): string | null {
  * else passes through unchanged so validateFromNumber can flag it.
  */
 export function normalizeFromNumber(raw: string): string {
-  const s = String(raw ?? '').trim();
+  // Strip leading backtick (Excel artifact from apostrophe-prefixed cells)
+  const s = String(raw ?? '').trim().replace(/^`/, '');
   // India: 10 plain digits → restore leading 0
   if (/^\d{10}$/.test(s)) return '0' + s;
   // International: plain digits that match a known country-code prefix → restore +
