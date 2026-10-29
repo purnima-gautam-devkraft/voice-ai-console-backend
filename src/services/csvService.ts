@@ -338,7 +338,7 @@ export function validateUserContact(raw: string): string | null {
  * (India: "1169323435" → "01169323435") or its leading + sign
  * (international: "442080995236" → "+442080995236", "6569515435" → "+6569515435",
  * "12133143493" → "+12133143493"). Only applies unambiguous fixes; anything
- * else passes through unchanged so validateFromNumber can flag it.
+ * else passes through unchanged.
  */
 export function normalizeFromNumber(raw: string): string {
   // Strip leading backtick (Excel artifact from apostrophe-prefixed cells)
