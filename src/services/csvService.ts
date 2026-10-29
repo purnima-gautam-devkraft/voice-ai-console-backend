@@ -85,10 +85,19 @@ export function parseRowsFromBuffer(
   buffer: Buffer,
   filename: string
 ): Record<string, string>[] {
-  if (isExcelFile(filename)) {
-    return rawRowsToRecords(excelToRawRows(buffer));
-  }
-  return parseCSVString(buffer.toString('utf-8'));
+  const rows = isExcelFile(filename)
+    ? rawRowsToRecords(excelToRawRows(buffer))
+    : parseCSVString(buffer.toString('utf-8'));
+
+  // Strip leading/trailing whitespace from every cell value so that entries
+  // like " Asia/Hong_Kong" or "Singapore " don't slip through to the scheduler.
+  return rows.map((row) => {
+    const trimmed: Record<string, string> = {};
+    for (const key of Object.keys(row)) {
+      trimmed[key.trim()] = String(row[key] ?? '').trim();
+    }
+    return trimmed;
+  });
 }
 
 /**
