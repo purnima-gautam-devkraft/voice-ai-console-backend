@@ -1,5 +1,5 @@
 import { ValidationResult, ErrorRow, AgentUseCase, TimezoneWarning, ContactCountryWarning } from '../types';
-import { AGENT_IDS, AGENT_DISPLAY_NAMES, COUNTRY_TIMEZONE_MAP, ALLOWED_COUNTRIES, PHONE_CODE_COUNTRIES } from '../config/constants';
+import { AGENT_IDS, AGENT_DISPLAY_NAMES, COUNTRY_TIMEZONE_MAP, PHONE_CODE_COUNTRIES } from '../config/constants';
 import {
   validateUserContact,
   validateFromNumber,
@@ -149,17 +149,14 @@ export function validateAgentData(
       }
     }
 
-    // 7. user_country_of_residence — must be one of the allowed destination countries.
-    //    timezone — warn if it doesn't match the canonical value; apply only when confirmCorrections=true.
+    // 7. timezone — if the country is in COUNTRY_TIMEZONE_MAP, warn when the
+    //    supplied timezone doesn't match the canonical value; apply correction
+    //    only when confirmCorrections=true. Unknown countries are allowed through
+    //    without timezone validation.
     if (missingColumns.indexOf('user_country_of_residence') === -1) {
       const rawCountry = String(row['user_country_of_residence'] || '').trim();
       const canonicalTz = COUNTRY_TIMEZONE_MAP[rawCountry.toLowerCase()];
-      if (!canonicalTz) {
-        messages.push(
-          `user_country_of_residence "${rawCountry}" is not a supported destination country. ` +
-          `Allowed: ${ALLOWED_COUNTRIES.join(', ')}.`
-        );
-      } else if (row['timezone'] !== canonicalTz) {
+      if (canonicalTz && row['timezone'] !== canonicalTz) {
         const supplied = String(row['timezone'] || '').trim() || '(blank)';
         const key = `${rawCountry}||${supplied}||${canonicalTz}`;
         const existing = tzWarnMap.get(key);
